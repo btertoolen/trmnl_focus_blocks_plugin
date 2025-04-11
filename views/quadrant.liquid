@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Focus Time Blocks</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #333;
+    }
+
+    .settings {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .focus-block {
+      margin: 0px 0;
+      padding: 15px;
+      border-left: 5px solid #4CAF50;
+      background-color: #f1f8e9;
+      border-radius: 4px;
+    }
+
+    .debug-info {
+      font-family: monospace;
+      color: #0066cc;
+      margin: 5px 0;
+    }
+
+    .no-blocks {
+      padding: 20px;
+      background-color: #ffebee;
+      border-radius: 4px;
+      border-left: 5px solid #f44336;
+    }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+      align-items: start;
+      margin-top: 5px;
+    }
+
+    .focus-blocks-column {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .quote-column {
+      background-color: #e3f2fd;
+      padding-top: 30px;
+      padding-right: 30px;
+      padding-left: 30px;
+      padding-bottom: 22px;
+      border-radius: 10px;
+      font-style: italic;
+      font-size: 1.1rem;
+      line-height: 1.6;
+      color: #0d47a1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+    }
+
+    .quote-column blockquote {
+      margin: 0;
+    }
+
+    /* Quadrant layout content */
+    .quadrant-container {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start; /* Align items vertically */
+      justify-content: flex-start; /* Ensure content starts from the top */
+      height: 100%;
+    }
+
+    .quadrant-header {
+      font-size: 1.6rem;
+      font-weight: bold;
+      margin-bottom: 15px; /* Added margin to create space below the header */
+      display: block; /* Ensure header is on top */
+    }
+
+    .focus-block-single {
+      margin: 0px 0;
+      padding: 15px;
+      border-left: 5px solid #4CAF50;
+      background-color: #f1f8e9;
+      border-radius: 4px;
+      margin-bottom: 10px; /* Space below the block */
+      width: 100%;
+    }
+
+    .reschedule-advice {
+      background-color: #ffebee;
+      padding: 15px;
+      border-left: 5px solid #f44336;
+      border-radius: 4px;
+      font-style: italic;
+      font-size: 1.1rem;
+      color: #d32f2f;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+
+  
+            {% comment %}
+  ============================================
+  Configuration
+  ============================================
+  {% endcomment %}
+
+  {% assign min_hours = 3 %}
+  {% assign start_hour = 7 %}
+  {% assign end_hour = 19 %}
+  {% assign max_days = 4 %}
+  {% assign show_debug = false %}
+
+
+
+  {% assign focus_blocks_str = "" %}
+  {% assign block_count = 0 %}
+
+  {% if data and data.events %}
+    {% assign day_index = 0 %}
+    {% for day_entry in data.events %}
+      {% if day_index >= max_days %}
+        {% break %}
+      {% endif %}
+      {% assign day_index = day_index | plus: 1 %}
+
+      {% assign day_name = day_entry[0] %}
+      {% assign day_events = day_entry[1] %}
+
+      {% assign day_start_minutes = start_hour | times: 60 %}
+      {% assign day_end_minutes = end_hour | times: 60 %}
+      {% assign sorted_events = day_events | sort: 'start' %}
+
+      {% if show_debug %}<div class="debug-info">Processing day: {{ day_name }}</div>{% endif %}
+
+      {% if sorted_events.size > 0 %}
+        {% assign first_event = sorted_events | first %}
+        {% assign first_event_start_parts = first_event.start | split: ':' %}
+        {% assign first_event_start_minutes = first_event_start_parts[0] | times: 60 | plus: first_event_start_parts[1] | times: 1 %}
+
+        {% unless first_event.all_day %}
+          {% if first_event_start_minutes > day_start_minutes %}
+            {% assign duration_minutes = first_event_start_minutes | minus: day_start_minutes %}
+            {% assign duration_hours = duration_minutes | divided_by: 60.0 %}
+
+            {% if duration_hours >= min_hours %}
+              {% assign block_date = day_name %}
+              {% assign block_start = start_hour | append: ':00' %}
+              {% assign block_end = first_event.start %}
+              {% assign block_duration = duration_hours | round: 1 %}
+              {% capture block_data %}{{ block_date }}|{{ block_start }}|{{ block_end }}|{{ block_duration }}{% endcapture %}
+              {% if focus_blocks_str != "" %}{% assign focus_blocks_str = focus_blocks_str | append: "," %}{% endif %}
+              {% assign focus_blocks_str = focus_blocks_str | append: block_data %}
+              {% assign block_count = block_count | plus: 1 %}
+              {% if show_debug %}<div class="debug-info">Added morning block: {{ block_data }}</div>{% endif %}
+            {% endif %}
+          {% endif %}
+        {% endunless %}
+
+        {% assign events_size = sorted_events.size | minus: 1 %}
+        {% for i in (0..events_size) %}
+          {% if i < events_size %}
+            {% assign current_event = sorted_events[i] %}
+            {% assign next_event = sorted_events[i | plus: 1] %}
+
+            {% unless current_event.all_day or next_event.all_day %}
+              {% assign current_event_end_parts = current_event.end | split: ':' %}
+              {% assign current_event_end_minutes = current_event_end_parts[0] | times: 60 | plus: current_event_end_parts[1] | times: 1 %}
+              {% assign next_event_start_parts = next_event.start | split: ':' %}
+              {% assign next_event_start_minutes = next_event_start_parts[0] | times: 60 | plus: next_event_start_parts[1] | times: 1 %}
+              {% assign duration_minutes = next_event_start_minutes | minus: current_event_end_minutes %}
+              {% assign duration_hours = duration_minutes | divided_by: 60.0 %}
+
+              {% if duration_hours >= min_hours %}
+                {% assign block_date = day_name %}
+                {% assign block_start = current_event.end %}
+                {% assign block_end = next_event.start %}
+                {% assign block_duration = duration_hours | round: 1 %}
+                {% capture block_data %}{{ block_date }}|{{ block_start }}|{{ block_end }}|{{ block_duration }}{% endcapture %}
+                {% if focus_blocks_str != "" %}{% assign focus_blocks_str = focus_blocks_str | append: "," %}{% endif %}
+                {% assign focus_blocks_str = focus_blocks_str | append: block_data %}
+                {% assign block_count = block_count | plus: 1 %}
+                {% if show_debug %}<div class="debug-info">Added mid-day block: {{ block_data }}</div>{% endif %}
+              {% endif %}
+            {% endunless %}
+          {% endif %}
+        {% endfor %}
+
+        {% assign last_event = sorted_events | last %}
+        {% assign last_event_end_parts = last_event.end | split: ':' %}
+        {% assign last_event_end_minutes = last_event_end_parts[0] | times: 60 | plus: last_event_end_parts[1] | times: 1 %}
+
+        {% unless last_event.all_day %}
+          {% if last_event_end_minutes < day_end_minutes %}
+            {% assign duration_minutes = day_end_minutes | minus: last_event_end_minutes %}
+            {% assign duration_hours = duration_minutes | divided_by: 60.0 %}
+
+            {% if duration_hours >= min_hours %}
+              {% assign block_date = day_name %}
+              {% assign block_start = last_event.end %}
+              {% assign block_end = end_hour | append: ':00' %}
+              {% assign block_duration = duration_hours | round: 1 %}
+              {% capture block_data %}{{ block_date }}|{{ block_start }}|{{ block_end }}|{{ block_duration }}{% endcapture %}
+              {% if focus_blocks_str != "" %}{% assign focus_blocks_str = focus_blocks_str | append: "," %}{% endif %}
+              {% assign focus_blocks_str = focus_blocks_str | append: block_data %}
+              {% assign block_count = block_count | plus: 1 %}
+              {% if show_debug %}<div class="debug-info">Added evening block: {{ block_data }}</div>{% endif %}
+            {% endif %}
+          {% endif %}
+        {% endunless %}
+      {% else %}
+        {% assign duration_hours = end_hour | minus: start_hour %}
+        {% assign block_date = day_name %}
+        {% assign block_start = start_hour | append: ':00' %}
+        {% assign block_end = end_hour | append: ':00' %}
+        {% assign block_duration = duration_hours %}
+        {% capture block_data %}{{ block_date }}|{{ block_start }}|{{ block_end }}|{{ block_duration }}{% endcapture %}
+        {% if focus_blocks_str != "" %}{% assign focus_blocks_str = focus_blocks_str | append: "," %}{% endif %}
+        {% assign focus_blocks_str = focus_blocks_str | append: block_data %}
+        {% assign block_count = block_count | plus: 1 %}
+        {% if show_debug %}<div class="debug-info">Added full day block: {{ block_data }}</div>{% endif %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+
+
+    <!-- Quadrant Layout -->
+    <div class="quadrant-container">
+      <div class="quadrant-header">
+        Available Focus Blocks in the {{max_days}} upcoming days: {{ block_count }}
+      </div>
+      
+      {% assign focus_blocks = focus_blocks_str | split: "," %}
+      {% assign visible_blocks = focus_blocks | slice: 0, 1 %}
+      {% assign block_count = visible_blocks.size %}
+
+      {% if block_count == 0 %}
+        <div class="reschedule-advice">
+          "No focus blocks found, consider organizing your calendar and protecting time for deep work!"
+        </div>
+      {% else %}
+        {% assign block_parts = visible_blocks[0] | split: '|' %}
+        <div class="focus-block-single">
+          <h3>{{ block_parts[0] }}</h3>
+          <p class="time">{{ block_parts[1] }} - {{ block_parts[2] }}</p>
+          <p class="duration">{{ block_parts[3] }} hours available for focused work</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>
